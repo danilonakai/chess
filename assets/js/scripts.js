@@ -274,7 +274,7 @@ const SQUARES = [
         "name":"H8",
         "cordinates":[FIELDPOSITION + (FIELDSIZE * 7),FIELDPOSITION + (FIELDSIZE * 7)]
     }              
-]
+];
 
 var pieces = {
     "black":[
@@ -410,23 +410,27 @@ var pieces = {
             "cordinates":[SQUARES.filter(square=> square.name == "E8")[0].cordinates[0],SQUARES.filter(square=> square.name == "E8")[0].cordinates[1]] 
         }
     ]
-}
+};
 
 var moves = [];
 
 let whitesTurn = true;
 let selectedPiece = null;
+let validMoves = null;
+let history = [];
 
 updateGame(0);
 
 
-
-function updateGame(piecesAngle,selectedPiece = null,possibleMoves = null){
+// MAIN FUNCTION THAT UPDATE THE BOARD
+function updateGame(piecesAngle){
     drawFrame();
-    drawBoard();    
-    drawPieces(piecesAngle,selectedPiece);
+    drawBoard();
+    drawHighlights();
+    drawPieces(piecesAngle);
 }
 
+// DRAW FUNCTIONS
 function drawFrame(){
     CTX.fillStyle = "#3a1c07";
     CTX.fillRect(0,0,BOARDSIZE,BOARDSIZE);
@@ -486,16 +490,40 @@ function drawBoard(){
     });
 }
 
-function drawPieces(piecesAngle,selectedPiece = null){    
+function drawHighlights(){
+    if(selectedPiece != null){
+        if(whitesTurn){
+            pieces.white.forEach(piece=>{
+                if(selectedPiece.color == "white" && selectedPiece.name == piece.name){
+                    CTX.fillStyle = "#c19348";
+                    CTX.fillRect(piece.cordinates[0],piece.cordinates[1],FIELDSIZE,FIELDSIZE);
+
+                    CTX.fillStyle = "#ff0000";
+                    checkPossibleMoves("white",piece.name,[piece.cordinates[0],piece.cordinates[1]]).forEach(cordinates=> {
+                        CTX.fillRect(cordinates[0],cordinates[1],FIELDSIZE,FIELDSIZE);
+                    });
+                }
+            }); 
+        }else{
+            pieces.black.forEach(piece=>{
+                if(selectedPiece.color == "black" && selectedPiece.name == piece.name){
+                    CTX.fillStyle = "#c19348";
+                    CTX.fillRect(piece.cordinates[0],piece.cordinates[1],FIELDSIZE,FIELDSIZE);
+                
+                    CTX.fillStyle = "#ff0000";
+                    checkPossibleMoves("black",piece.name,[piece.cordinates[0],piece.cordinates[1]]).forEach(cordinates=> {
+                        CTX.fillRect(cordinates[0],cordinates[1],FIELDSIZE,FIELDSIZE);
+                    });
+                }
+            });
+        } 
+    }
+}
+
+function drawPieces(piecesAngle){    
     // DRAW BLACK PIECES
     pieces.black.forEach(piece=>{
         let img = new Image();
-        
-        if(selectedPiece != null && selectedPiece[0] == "black" && selectedPiece[1] == piece.name){
-            CTX.fillStyle = "#c19348";
-
-            CTX.fillRect(piece.cordinates[0],piece.cordinates[1],FIELDSIZE,FIELDSIZE);
-        }
 
         img.onload = ()=>{
             CTX.drawImage(img,piece.cordinates[0],piece.cordinates[1],FIELDSIZE,FIELDSIZE);
@@ -536,12 +564,6 @@ function drawPieces(piecesAngle,selectedPiece = null){
     pieces.white.forEach(piece=>{
         let img = new Image();
 
-        if(selectedPiece != null && selectedPiece[0] == "white" && selectedPiece[1] == piece.name){
-            CTX.fillStyle = "#c19348";
-
-            CTX.fillRect(piece.cordinates[0],piece.cordinates[1],FIELDSIZE,FIELDSIZE);
-        }
-
         img.onload = ()=>{
             CTX.drawImage(img,piece.cordinates[0],piece.cordinates[1],FIELDSIZE,FIELDSIZE);
         }
@@ -578,141 +600,1464 @@ function drawPieces(piecesAngle,selectedPiece = null){
     });    
 }
 
-function getClick(event){
+
+
+
+
+// EVENT LISTENERS
+function clicked(event){
     let x = event.layerX;
     let y = event.layerY;
 
     if(selectedPiece == null){
-        selectPiece(x,y);
+        selectPiece(getClickedSquareCordinates([x,y]));
     }else{
-        let newX = SQUARES.filter(square=> x >= square.cordinates[0] && x <= (square.cordinates[0] + FIELDSIZE))[0].cordinates[0];
-        let newY = SQUARES.filter(square=> y >= square.cordinates[1] && y <= (square.cordinates[1] + FIELDSIZE))[0].cordinates[1];
-        let newCordinates = [newX,newY];
-        
-        movePiece(newCordinates);
+        movePiece(getClickedSquareCordinates([x,y]));
     }
 }
 
-function getPieceCordinates(){
 
+
+
+
+// HELPERS FUNCTIONS
+function getPieceCordinates(pieceColor,pieceName){
+    if(pieceColor == "black"){
+        return pieces.black.filter(piece=> piece.name == pieceName)[0].cordinates;
+    }else if(pieceColor == "white"){
+        return pieces.white.filter(piece=> piece.name == pieceName)[0].cordinates;
+    }
 }
 
-function setPieceCordinates(){
-
+function setPieceCordinates(pieceColor,pieceName,newCordinates){
+    if(pieceColor == "black"){
+        pieces.black.filter(piece=> piece.name == pieceName)[0].cordinates = newCordinates;
+    }else if(pieceColor == "white"){
+        pieces.white.filter(piece=> piece.name == pieceName)[0].cordinates = newCordinates;
+    }
 }
 
-function selectPiece(x,y){
+function getFieldName(cordinates){
+    return SQUARES.filter(square=> square.cordinates[0] == cordinates[0] && square.cordinates[1] == cordinates[1])[0].name;
+}
+
+function updateLog(pieceColor,pieceName,oldCordinates,newCordinates){    
+    let oldField = getFieldName(oldCordinates);
+    let newField = getFieldName(newCordinates);
+
+    history.push({
+        "color":pieceColor,
+        "name":pieceName,
+        "old_cordinates":oldCordinates,
+        "new_cordinates":newCordinates,
+        "old_field":oldField,
+        "new_field":newField
+    });
+
+    // console.log(history);
+}
+
+function getClickedSquareCordinates(clickCordinates){
+    let newX = SQUARES.filter(square=> clickCordinates[0] >= square.cordinates[0] && clickCordinates[0] <= (square.cordinates[0] + FIELDSIZE))[0].cordinates[0];
+    let newY = SQUARES.filter(square=> clickCordinates[1] >= square.cordinates[1] && clickCordinates[1] <= (square.cordinates[1] + FIELDSIZE))[0].cordinates[1];
+    let squareCordinates = [newX,newY];
+    
+    return squareCordinates;
+}
+
+function isValidMove(newCordinates){
+    return validMoves.filter(move=> move[0] == newCordinates[0] && move[1] == newCordinates[1]).length > 0;
+}
+
+function hasPiece(cordinates){
+    let pieceFound = null;
+    let pieceBlack = pieces.black.filter(piece=> piece.cordinates[0] == cordinates[0] && piece.cordinates[1] == cordinates[1])[0];
+    let pieceWhite = pieces.white.filter(piece=> piece.cordinates[0] == cordinates[0] && piece.cordinates[1] == cordinates[1])[0];
+
+    if(pieceBlack != undefined){
+        pieceFound = {
+            "name":pieceBlack.name,
+            "color":"black",
+            "cordinates": pieceBlack.cordinates
+        }
+    }else if(pieceWhite != undefined){
+        pieceFound = {
+            "name":pieceWhite.name,
+            "color":"white",
+            "cordinates": pieceWhite.cordinates
+        }
+    }
+
+    return pieceFound;
+}
+
+function invertCordinatesForBlacks(cordinates){
+    return [(BOARDSIZE - FIELDSIZE) - cordinates[0],(BOARDSIZE - FIELDSIZE) - cordinates[1]];
+}
+
+function takePiece(piece){
+    setPieceCordinates(piece.color,piece.name,[-150,-150]);
+}
+
+function selectPiece(cordinates){
     if(whitesTurn){
         pieces.white.forEach(piece => {
-            let pieceXbeginning = piece.cordinates[0];
-            let pieceXend = piece.cordinates[0] + FIELDSIZE;
-            let pieceYbeginning = piece.cordinates[1];
-            let pieceYend = piece.cordinates[1] + FIELDSIZE;
-            let pieceMoves = null;
-
-            if((x >= pieceXbeginning && x <= pieceXend) && (y >= pieceYbeginning && y <= pieceYend)){
+            if(cordinates[0] == piece.cordinates[0] && cordinates[1] == piece.cordinates[1]){
                 selectedPiece = {
                     "color":"white",
-                    "piece":piece.name
+                    "name":piece.name
                 }
 
-                if(piece.name.indexOf("pawn") != -1){
-                    pawnMoves();
-                }else if(piece.name.indexOf("rock") != -1){
-                    rockMoves();
-                }else if(piece.name.indexOf("knight") != -1){
-                    knightMoves();
-                }else if(piece.name.indexOf("bishop") != -1){
-                    bishopMoves();
-                }else if(piece.name == "queen"){
-                    queenMoves();
-                }else if(piece.name == "king"){
-                    kingMoves();
-                }
-
+                updateGame(0);
                 whitesTurn = false;
-                updateGame(0,["white",piece.name],pieceMoves);
             }
         });
     }else{
-        pieces.black.forEach(piece => {
-            let pieceXbeginning = piece.cordinates[0];
-            let pieceXend = piece.cordinates[0] + FIELDSIZE;
-            let pieceYbeginning = piece.cordinates[1];
-            let pieceYend = piece.cordinates[1] + FIELDSIZE;
-            let pieceMoves = null;
+        cordinates = invertCordinatesForBlacks(cordinates);
 
-            if(((BOARDSIZE - x) >= pieceXbeginning && (BOARDSIZE - x) <= pieceXend) && ((BOARDSIZE - y) >= pieceYbeginning && (BOARDSIZE - y) <= pieceYend)){
+        pieces.black.forEach(piece => {
+            if(cordinates[0] == piece.cordinates[0] && cordinates[1] == piece.cordinates[1]){
                 selectedPiece = {
                     "color":"black",
-                    "piece":piece.name
+                    "name":piece.name
                 }
 
-                if(piece.name.indexOf("pawn") != -1){
-                    pawnMoves();
-                }else if(piece.name.indexOf("rock") != -1){
-                    rockMoves();
-                }else if(piece.name.indexOf("knight") != -1){
-                    knightMoves();
-                }else if(piece.name.indexOf("bishop") != -1){
-                    bishopMoves();
-                }else if(piece.name == "queen"){
-                    queenMoves();
-                }else if(piece.name == "king"){
-                    kingMoves();
-                }
-
+                updateGame(180);
                 whitesTurn = true;
-                updateGame(180,["black",piece.name],pieceMoves);
             }
         });
     }
 }
 
 function movePiece(newCordinates){
+    let oldCordinates;
+
     if(selectedPiece.color == "black"){
-        newCordinates = [(BOARDSIZE - FIELDSIZE) - newCordinates[0],(BOARDSIZE - FIELDSIZE) - newCordinates[1]];
+        if(isValidMove(invertCordinatesForBlacks(newCordinates))){
+            newCordinates = invertCordinatesForBlacks(newCordinates);
+            oldCordinates = getPieceCordinates("black",selectedPiece.name);
 
-        pieces.black.filter(piece=> piece.name == selectedPiece.piece)[0].cordinates = newCordinates;
-        
-        CANVAS.classList.add('rotate0');
-        CANVAS.classList.remove('rotate180');
-        
-        selectedPiece = null;
+            if(hasPiece(newCordinates) != null && hasPiece(newCordinates).color != "black"){
+                takePiece(hasPiece(newCordinates));
+            }
+            
+            setPieceCordinates("black",selectedPiece.name,newCordinates);
+            updateLog("black",selectedPiece.name,oldCordinates,newCordinates);
 
-        updateGame(0);
+            CANVAS.classList.add('rotate0');
+            CANVAS.classList.remove('rotate180');
+            
+            selectedPiece = null;
+
+            if(isCheck()){
+                alert("Whites are in check!");
+                
+                if(isCheckmate()){
+                    alert("Whites lost the game!");
+                }else{
+                    updateGame(0);
+                }
+            }else{
+                updateGame(0);
+            }        
+        }else{
+            if(hasPiece(invertCordinatesForBlacks(newCordinates)).color == "black"){
+                selectedPiece = null;
+                whitesTurn = false;
+                selectPiece(newCordinates);
+            }
+        }        
     }else if(selectedPiece.color == "white"){
-        pieces.white.filter(piece=> piece.name == selectedPiece.piece)[0].cordinates = newCordinates;
+        if(isValidMove(newCordinates)){
+            oldCordinates = getPieceCordinates("white",selectedPiece.name);
 
-        CANVAS.classList.add('rotate180');
-        CANVAS.classList.remove('rotate0');
+            if(hasPiece(newCordinates) != null && hasPiece(newCordinates).color != "white"){
+                takePiece(hasPiece(newCordinates));
+            }
+            
+            setPieceCordinates("white",selectedPiece.name,newCordinates);
+            updateLog("white",selectedPiece.name,oldCordinates,newCordinates);
 
-        selectedPiece = null;
+            CANVAS.classList.add('rotate180');
+            CANVAS.classList.remove('rotate0');
 
-        updateGame(180);
+            selectedPiece = null;
+
+            if(isCheck()){
+                alert("Blacks are in check!");
+                
+                if(isCheckmate()){
+                    alert("Blacks lost the game!");
+                }else{
+                    updateGame(180);
+                }
+            }else{
+                updateGame(180);
+            }
+        }else{
+            if(hasPiece(newCordinates).color == "white"){
+                selectedPiece = null;
+                whitesTurn = true;
+                selectPiece(newCordinates);
+            }
+        }
     }
 }
 
-function pawnMoves(pieceCordinates){
+function isCheck(){
+    let checkStatus = false;
 
+    let danger = [];
+
+    if(whitesTurn){
+        let whiteKingCordinates = pieces.white.filter(piece => piece.name == "king")[0].cordinates;
+        
+        // TOP
+        if(whiteKingCordinates[1] != FIELDPOSITION){
+            let topDistance = 0;
+
+            for(let i = whiteKingCordinates[1] - FIELDSIZE; i >= FIELDPOSITION; i = i - FIELDSIZE){
+                topDistance++;
+
+                let target = hasPiece([whiteKingCordinates[0],i]);
+ 
+                if(target != null){
+                    if(target.color == "black"){
+                        if(topDistance == 1 && target.name == "king"){
+                            checkStatus = true;
+                        }else if(target.name == "rock1" || target.name == "rock2" || target.name == "queen"){
+                            checkStatus = true;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        // BOTTOM
+        if(whiteKingCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+            let topDistance = 0;
+
+            for(let i = whiteKingCordinates[1] + FIELDSIZE; i <= (FIELDPOSITION + (FIELDSIZE * 7)); i = i + FIELDSIZE){
+                topDistance++;
+
+                let target = hasPiece([whiteKingCordinates[0],i]);
+ 
+                if(target != null){
+                    if(target.color == "black"){
+                        if(topDistance == 1 && target.name == "king"){
+                            checkStatus = true;
+                        }else if(target.name == "rock1" || target.name == "rock2" || target.name == "queen"){
+                            checkStatus = true;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }else{
+        let blackKingCordinates = pieces.black.filter(piece => piece.name == "king")[0].cordinates;
+        console.log(blackKingCordinates);
+    }
+
+    return checkStatus;
 }
 
-function rockMoves(pieceCordinates){
-    
+function isCheckmate(){
+    let checkMateStatus = false;
+
+
+    return checkMateStatus;
 }
 
-function knightMoves(pieceCordinates){
-    
-}
 
-function bishopMoves(pieceCordinates){
-    
-}
 
-function queenMoves(pieceCordinates){
-    
-}
 
-function kingMoves(pieceCordinates){
+// PIECE'S RULES
+function checkPossibleMoves(pieceColor,pieceName,pieceCordinates){
+    let possibleMoves = [];
     
+    if(pieceName.indexOf("pawn") != -1){
+        let frontLeft;
+        let frontRight;
+
+        if(pieceColor == "white"){
+            // Next field is free
+            if(hasPiece([pieceCordinates[0],(pieceCordinates[1] - FIELDSIZE)]) == null && pieceCordinates[1] > FIELDPOSITION){
+                possibleMoves.push([pieceCordinates[0],pieceCordinates[1] - FIELDSIZE]);
+            }
+
+            // It's in the initial field and the second field from here is free
+            if(pieceCordinates[1] == (BOARDSIZE - FIELDPOSITION - (FIELDSIZE * 2))){
+                if(hasPiece([pieceCordinates[0],(pieceCordinates[1] - FIELDSIZE)]) == null && hasPiece([pieceCordinates[0],(pieceCordinates[1] - (FIELDSIZE * 2))]) == null){
+                    possibleMoves.push([pieceCordinates[0],pieceCordinates[1] - (FIELDSIZE * 2)]);
+                    possibleMoves.push([pieceCordinates[0],pieceCordinates[1] - FIELDSIZE]);
+                }
+            }
+
+            // Opponent's piece is available to take
+            frontLeft = hasPiece([(pieceCordinates[0] - FIELDSIZE),(pieceCordinates[1] - FIELDSIZE)]);
+            frontRight = hasPiece([(pieceCordinates[0] + FIELDSIZE),(pieceCordinates[1] - FIELDSIZE)]);
+
+            if(frontLeft != null){
+                if(frontLeft.color == "black"){
+                    possibleMoves.push(frontLeft.cordinates);
+                }
+            }
+            if(frontRight != null){
+                if(frontRight.color == "black"){
+                    possibleMoves.push(frontRight.cordinates);
+                }
+            }           
+        }else if(pieceColor == "black"){
+            // Next field is free
+            if(hasPiece([pieceCordinates[0],(pieceCordinates[1] + FIELDSIZE)]) == null && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 7))){
+                possibleMoves.push([pieceCordinates[0],pieceCordinates[1] + FIELDSIZE]);
+            }
+
+            // It's in the initial field and the second field from here is free
+            if(pieceCordinates[1] == (FIELDPOSITION + FIELDSIZE)){
+                if(hasPiece([pieceCordinates[0],(pieceCordinates[1] + FIELDSIZE)]) == null && hasPiece([pieceCordinates[0],(pieceCordinates[1] + (FIELDSIZE * 2))]) == null){
+                    possibleMoves.push([pieceCordinates[0],pieceCordinates[1] + (FIELDSIZE * 2)]);
+                    possibleMoves.push([pieceCordinates[0],pieceCordinates[1] + FIELDSIZE]);
+                }
+            }
+
+            // Opponent's piece is available to take
+            frontLeft = hasPiece([(pieceCordinates[0] - FIELDSIZE),(pieceCordinates[1] + FIELDSIZE)]);
+            frontRight = hasPiece([(pieceCordinates[0] + FIELDSIZE),(pieceCordinates[1] + FIELDSIZE)]);
+
+            if(frontLeft != null){
+                if(frontLeft.color == "white"){
+                    possibleMoves.push(frontLeft.cordinates);
+                }
+            }
+            if(frontRight != null){
+                if(frontRight.color == "white"){
+                    possibleMoves.push(frontRight.cordinates);
+                }
+            }
+        }
+    }else if(pieceName.indexOf("rock") != -1){
+        if(pieceColor == "white"){
+            // TOP
+            if(pieceCordinates[1] != FIELDPOSITION){
+                for(let i = pieceCordinates[1] - FIELDSIZE; i >= FIELDPOSITION; i = i - FIELDSIZE){
+                    let target = hasPiece([pieceCordinates[0],i]);
+    
+                    if(target != null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push([pieceCordinates[0],i]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([pieceCordinates[0],i]);
+                    }
+                }
+            }
+
+            // RIGHT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                for(let i = pieceCordinates[0] + FIELDSIZE; i <= (FIELDPOSITION + (FIELDSIZE * 7)); i = i + FIELDSIZE){
+                    let target = hasPiece([i,pieceCordinates[1]]);
+    
+                    if(target != null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push([i,pieceCordinates[1]]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([i,pieceCordinates[1]]);
+                    }
+                }
+            }
+
+            // BOTTOM
+            if(pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                for(let i = pieceCordinates[1] + FIELDSIZE; i <= (FIELDPOSITION + (FIELDSIZE * 7)); i = i + FIELDSIZE){
+                    let target = hasPiece([pieceCordinates[0],i]);
+
+                    if(target != null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push([pieceCordinates[0],i]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([pieceCordinates[0],i]);
+                    }
+                }
+            }
+
+            // LEFT
+            if(pieceCordinates[0] != FIELDPOSITION){
+                for(let i = pieceCordinates[0] - FIELDSIZE; i >= FIELDPOSITION; i = i - FIELDSIZE){
+                    let target = hasPiece([i,pieceCordinates[1]]);
+
+                    if(target != null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push([i,pieceCordinates[1]]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([i,pieceCordinates[1]]);
+                    }
+                }
+            }               
+        }else if(pieceColor == "black"){
+            // TOP
+            if(pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                for(let i = pieceCordinates[1] + FIELDSIZE; i <= (FIELDPOSITION + (FIELDSIZE * 7)); i = i + FIELDSIZE){
+                    let target = hasPiece([pieceCordinates[0],i]);
+
+                    if(target != null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push([pieceCordinates[0],i]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([pieceCordinates[0],i]);
+                    }
+                }
+            }
+
+            // RIGHT
+            if(pieceCordinates[0] != FIELDPOSITION){
+                for(let i = pieceCordinates[0] - FIELDSIZE; i >= FIELDPOSITION; i = i - FIELDSIZE){
+                    let target = hasPiece([i,pieceCordinates[1]]);
+
+                    if(target != null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push([i,pieceCordinates[1]]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([i,pieceCordinates[1]]);
+                    }
+                }
+            }   
+
+            // BOTTOM
+            if(pieceCordinates[1] != FIELDPOSITION){
+                for(let i = pieceCordinates[1] - FIELDSIZE; i >= FIELDPOSITION; i = i - FIELDSIZE){
+                    let target = hasPiece([pieceCordinates[0],i]);
+    
+                    if(target != null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push([pieceCordinates[0],i]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([pieceCordinates[0],i]);
+                    }
+                }
+            }
+
+            // LEFT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                for(let i = pieceCordinates[0] + FIELDSIZE; i <= (FIELDPOSITION + (FIELDSIZE * 7)); i = i + FIELDSIZE){
+                    let target = hasPiece([i,pieceCordinates[1]]);
+    
+                    if(target != null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push([i,pieceCordinates[1]]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([i,pieceCordinates[1]]);
+                    }
+                }
+            }
+        }
+    }else if(pieceName.indexOf("knight") != -1){
+        if(pieceColor == "white"){
+            let newCordinates;
+            let target;
+
+            // TOP-LEFT 1
+            if(pieceCordinates[0] != FIELDPOSITION && pieceCordinates[1] > (FIELDPOSITION + FIELDSIZE)){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] - (FIELDSIZE * 2)];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // TOP-LEFT 2
+            if(pieceCordinates[0] > (FIELDPOSITION + FIELDSIZE) && pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - (FIELDSIZE * 2),pieceCordinates[1] - FIELDSIZE];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // TOP-RIGHT 1
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] > (FIELDPOSITION + FIELDSIZE)){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] - (FIELDSIZE * 2)];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // TOP-RIGHT 2
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 6)) && pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] + (FIELDSIZE * 2),pieceCordinates[1] - FIELDSIZE];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-RIGHT 1
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 6))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] + (FIELDSIZE * 2)];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-RIGHT 2
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 6)) && pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + (FIELDSIZE * 2),pieceCordinates[1] + FIELDSIZE];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-LEFT 1
+            if(pieceCordinates[0] != FIELDPOSITION && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 6))){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] + (FIELDSIZE * 2)];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-LEFT 2
+            if(pieceCordinates[0] > (FIELDPOSITION + FIELDSIZE) && pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] - (FIELDSIZE * 2),pieceCordinates[1] + FIELDSIZE];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+        }else if(pieceColor == "black"){
+            let newCordinates;
+            let target;
+
+            // TOP-LEFT 1
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 6))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] + (FIELDSIZE * 2)];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // TOP-LEFT 2
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 6)) && pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + (FIELDSIZE * 2),pieceCordinates[1] + FIELDSIZE];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // TOP-RIGHT 1
+            if(pieceCordinates[0] != FIELDPOSITION && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 6))){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] + (FIELDSIZE * 2)];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // TOP-RIGHT 2
+            if(pieceCordinates[0] > (FIELDPOSITION + FIELDSIZE) && pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] - (FIELDSIZE * 2),pieceCordinates[1] + FIELDSIZE];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-RIGHT 1
+            if(pieceCordinates[0] != FIELDPOSITION && pieceCordinates[1] > (FIELDPOSITION + FIELDSIZE)){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] - (FIELDSIZE * 2)];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-RIGHT 2
+            if(pieceCordinates[0] > (FIELDPOSITION + FIELDSIZE) && pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - (FIELDSIZE * 2),pieceCordinates[1] - FIELDSIZE];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-LEFT 1
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] > (FIELDPOSITION + FIELDSIZE)){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] - (FIELDSIZE * 2)];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-LEFT 2
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 6)) && pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] + (FIELDSIZE * 2),pieceCordinates[1] - FIELDSIZE];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+        }
+    }else if(pieceName.indexOf("bishop") != -1){
+        if(pieceColor == "white"){
+            let newCordinates;
+            let target;
+
+            //TOP-LEFT
+            if(pieceCordinates[0] > FIELDPOSITION && pieceCordinates[1] > FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                
+                while(newCordinates[0] >= FIELDPOSITION && newCordinates[1] >= FIELDPOSITION){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+                    newCordinates = [newCordinates[0] - FIELDSIZE, newCordinates[1] - FIELDSIZE];
+                }
+            }    
+            
+            //TOP-RIGHT
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] > FIELDPOSITION){                
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                
+                while(newCordinates[0] <= (FIELDPOSITION + (FIELDSIZE * 7)) && newCordinates[1] >= FIELDPOSITION){                    
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){                        
+                        if(target.color == "white"){                            
+                            break;
+                        }else{                            
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{                        
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] + FIELDSIZE, newCordinates[1] - FIELDSIZE];
+                }
+            }    
+
+            //BOTTOM-RIGHT
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                
+                while(newCordinates[0] <= (FIELDPOSITION + (FIELDSIZE * 7)) && newCordinates[1] <= (FIELDPOSITION + (FIELDSIZE * 7))){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] + FIELDSIZE, newCordinates[1] + FIELDSIZE];
+                }
+            }    
+
+            //BOTTOM-LEFT
+            if(pieceCordinates[0] > FIELDPOSITION && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                
+                while(newCordinates[0] >= FIELDPOSITION && newCordinates[1] <= (FIELDPOSITION + (FIELDSIZE * 7))){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] - FIELDSIZE, newCordinates[1] + FIELDSIZE];
+                }
+            }    
+        }else if(pieceColor == "black"){
+            let newCordinates;
+            let target;
+
+            //TOP-LEFT
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                
+                while(newCordinates[0] <= (FIELDPOSITION + (FIELDSIZE * 7)) && newCordinates[1] <= (FIELDPOSITION + (FIELDSIZE * 7))){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] + FIELDSIZE, newCordinates[1] + FIELDSIZE];
+                }
+            }    
+
+            //TOP-RIGHT
+            if(pieceCordinates[0] > FIELDPOSITION && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                
+                while(newCordinates[0] >= FIELDPOSITION && newCordinates[1] <= (FIELDPOSITION + (FIELDSIZE * 7))){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] - FIELDSIZE, newCordinates[1] + FIELDSIZE];
+                }
+            }  
+
+            //BOTTOM-RIGHT
+            if(pieceCordinates[0] > FIELDPOSITION && pieceCordinates[1] > FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                
+                while(newCordinates[0] >= FIELDPOSITION && newCordinates[1] >= FIELDPOSITION){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+                    newCordinates = [newCordinates[0] - FIELDSIZE, newCordinates[1] - FIELDSIZE];
+                }
+            }    
+            
+            //BOTTOM-LEFT
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] > FIELDPOSITION){                
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                
+                while(newCordinates[0] <= (FIELDPOSITION + (FIELDSIZE * 7)) && newCordinates[1] >= FIELDPOSITION){                    
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){                        
+                        if(target.color == "black"){                            
+                            break;
+                        }else{                            
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{                        
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] + FIELDSIZE, newCordinates[1] - FIELDSIZE];
+                }
+            }    
+        }
+    }else if(pieceName == "queen"){
+        if(pieceColor == "white"){
+            let newCordinates;
+            let target;
+
+            // TOP
+            if(pieceCordinates[1] != FIELDPOSITION){
+                for(let i = pieceCordinates[1] - FIELDSIZE; i >= FIELDPOSITION; i = i - FIELDSIZE){
+                    let target = hasPiece([pieceCordinates[0],i]);
+    
+                    if(target != null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push([pieceCordinates[0],i]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([pieceCordinates[0],i]);
+                    }
+                }
+            }
+
+            // RIGHT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                for(let i = pieceCordinates[0] + FIELDSIZE; i <= (FIELDPOSITION + (FIELDSIZE * 7)); i = i + FIELDSIZE){
+                    let target = hasPiece([i,pieceCordinates[1]]);
+    
+                    if(target != null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push([i,pieceCordinates[1]]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([i,pieceCordinates[1]]);
+                    }
+                }
+            }
+
+            // BOTTOM
+            if(pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                for(let i = pieceCordinates[1] + FIELDSIZE; i <= (FIELDPOSITION + (FIELDSIZE * 7)); i = i + FIELDSIZE){
+                    let target = hasPiece([pieceCordinates[0],i]);
+
+                    if(target != null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push([pieceCordinates[0],i]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([pieceCordinates[0],i]);
+                    }
+                }
+            }
+
+            // LEFT
+            if(pieceCordinates[0] != FIELDPOSITION){
+                for(let i = pieceCordinates[0] - FIELDSIZE; i >= FIELDPOSITION; i = i - FIELDSIZE){
+                    let target = hasPiece([i,pieceCordinates[1]]);
+
+                    if(target != null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push([i,pieceCordinates[1]]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([i,pieceCordinates[1]]);
+                    }
+                }
+            }   
+
+            //TOP-LEFT
+            if(pieceCordinates[0] > FIELDPOSITION && pieceCordinates[1] > FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                
+                while(newCordinates[0] >= FIELDPOSITION && newCordinates[1] >= FIELDPOSITION){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+                    newCordinates = [newCordinates[0] - FIELDSIZE, newCordinates[1] - FIELDSIZE];
+                }
+            }    
+            
+            //TOP-RIGHT
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] > FIELDPOSITION){                
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                
+                while(newCordinates[0] <= (FIELDPOSITION + (FIELDSIZE * 7)) && newCordinates[1] >= FIELDPOSITION){                    
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){                        
+                        if(target.color == "white"){                            
+                            break;
+                        }else{                            
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{                        
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] + FIELDSIZE, newCordinates[1] - FIELDSIZE];
+                }
+            }    
+
+            //BOTTOM-RIGHT
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                
+                while(newCordinates[0] <= (FIELDPOSITION + (FIELDSIZE * 7)) && newCordinates[1] <= (FIELDPOSITION + (FIELDSIZE * 7))){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] + FIELDSIZE, newCordinates[1] + FIELDSIZE];
+                }
+            }    
+
+            //BOTTOM-LEFT
+            if(pieceCordinates[0] > FIELDPOSITION && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                
+                while(newCordinates[0] >= FIELDPOSITION && newCordinates[1] <= (FIELDPOSITION + (FIELDSIZE * 7))){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "white"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] - FIELDSIZE, newCordinates[1] + FIELDSIZE];
+                }
+            }    
+        }else if(pieceColor == "black"){
+            let newCordinates;
+            let target;
+
+            // TOP
+            if(pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                for(let i = pieceCordinates[1] + FIELDSIZE; i <= (FIELDPOSITION + (FIELDSIZE * 7)); i = i + FIELDSIZE){
+                    let target = hasPiece([pieceCordinates[0],i]);
+
+                    if(target != null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push([pieceCordinates[0],i]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([pieceCordinates[0],i]);
+                    }
+                }
+            }
+
+            // RIGHT
+            if(pieceCordinates[0] != FIELDPOSITION){
+                for(let i = pieceCordinates[0] - FIELDSIZE; i >= FIELDPOSITION; i = i - FIELDSIZE){
+                    let target = hasPiece([i,pieceCordinates[1]]);
+
+                    if(target != null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push([i,pieceCordinates[1]]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([i,pieceCordinates[1]]);
+                    }
+                }
+            }   
+
+            // BOTTOM
+            if(pieceCordinates[1] != FIELDPOSITION){
+                for(let i = pieceCordinates[1] - FIELDSIZE; i >= FIELDPOSITION; i = i - FIELDSIZE){
+                    let target = hasPiece([pieceCordinates[0],i]);
+    
+                    if(target != null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push([pieceCordinates[0],i]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([pieceCordinates[0],i]);
+                    }
+                }
+            }
+
+            // LEFT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                for(let i = pieceCordinates[0] + FIELDSIZE; i <= (FIELDPOSITION + (FIELDSIZE * 7)); i = i + FIELDSIZE){
+                    let target = hasPiece([i,pieceCordinates[1]]);
+    
+                    if(target != null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push([i,pieceCordinates[1]]);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push([i,pieceCordinates[1]]);
+                    }
+                }
+            }
+
+            //TOP-LEFT
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                
+                while(newCordinates[0] <= (FIELDPOSITION + (FIELDSIZE * 7)) && newCordinates[1] <= (FIELDPOSITION + (FIELDSIZE * 7))){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] + FIELDSIZE, newCordinates[1] + FIELDSIZE];
+                }
+            }    
+
+            //TOP-RIGHT
+            if(pieceCordinates[0] > FIELDPOSITION && pieceCordinates[1] < (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                
+                while(newCordinates[0] >= FIELDPOSITION && newCordinates[1] <= (FIELDPOSITION + (FIELDSIZE * 7))){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] - FIELDSIZE, newCordinates[1] + FIELDSIZE];
+                }
+            }  
+
+            //BOTTOM-RIGHT
+            if(pieceCordinates[0] > FIELDPOSITION && pieceCordinates[1] > FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                
+                while(newCordinates[0] >= FIELDPOSITION && newCordinates[1] >= FIELDPOSITION){
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){
+                        if(target.color == "black"){
+                            break;
+                        }else{
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{
+                        possibleMoves.push(newCordinates);
+                    }
+                    newCordinates = [newCordinates[0] - FIELDSIZE, newCordinates[1] - FIELDSIZE];
+                }
+            }    
+            
+            //BOTTOM-LEFT
+            if(pieceCordinates[0] < (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] > FIELDPOSITION){                
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                
+                while(newCordinates[0] <= (FIELDPOSITION + (FIELDSIZE * 7)) && newCordinates[1] >= FIELDPOSITION){                    
+                    target = hasPiece(newCordinates);
+
+                    if(target !== null){                        
+                        if(target.color == "black"){                            
+                            break;
+                        }else{                            
+                            possibleMoves.push(newCordinates);
+                            break;
+                        }
+                    }else{                        
+                        possibleMoves.push(newCordinates);
+                    }
+
+                    newCordinates = [newCordinates[0] + FIELDSIZE, newCordinates[1] - FIELDSIZE];
+                }
+            }    
+        }
+    }else if(pieceName == "king"){
+        if(pieceColor == "white"){
+            let newCordinates;
+            let target;
+
+            // TOP-LEFT
+            if(pieceCordinates[0] != FIELDPOSITION && pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+            
+            // TOP
+            if(pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0],pieceCordinates[1] - FIELDSIZE];
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // TOP-RIGHT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] - FIELDSIZE];
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // RIGHT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1]];
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-RIGHT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM
+            if(pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0],pieceCordinates[1] + FIELDSIZE];
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-LEFT
+            if(pieceCordinates[0] != FIELDPOSITION && pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] + FIELDSIZE];
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // LEFT
+            if(pieceCordinates[0] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1]];
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "black"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+        }else if(pieceColor == "black"){
+            let newCordinates;
+            let target;
+
+            // TOP-LEFT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] + FIELDSIZE];                
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // TOP
+            if(pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0],pieceCordinates[1] + FIELDSIZE];                
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // TOP-RIGHT
+            if(pieceCordinates[0] != FIELDPOSITION && pieceCordinates[1] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] + FIELDSIZE];                
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // RIGHT
+            if(pieceCordinates[0] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1]];                
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-RIGHT
+            if(pieceCordinates[0] != FIELDPOSITION && pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] - FIELDSIZE,pieceCordinates[1] - FIELDSIZE];                
+                target = hasPiece(newCordinates);
+                
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+            
+            // BOTTOM
+            if(pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0],pieceCordinates[1] - FIELDSIZE];                
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // BOTTOM-LEFT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7)) && pieceCordinates[1] != FIELDPOSITION){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1] - FIELDSIZE];                
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+
+            // LEFT
+            if(pieceCordinates[0] != (FIELDPOSITION + (FIELDSIZE * 7))){
+                newCordinates = [pieceCordinates[0] + FIELDSIZE,pieceCordinates[1]];                
+                target = hasPiece(newCordinates);
+
+                if(target != null){
+                    if(target.color == "white"){
+                        possibleMoves.push(newCordinates);
+                    }
+                }else{
+                    possibleMoves.push(newCordinates);
+                }
+            }
+        }
+    }
+
+    validMoves = possibleMoves;
+    return possibleMoves;
 }
