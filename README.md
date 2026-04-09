@@ -1,6 +1,8 @@
 # Chess
 
-A fully functional chess game running in the browser with no dependencies — plain HTML, CSS, and vanilla JavaScript ES modules rendered onto an HTML5 `<canvas>`.
+<img width="831" height="827" alt="Screenshot from 2026-04-09 06-31-59" src="https://github.com/user-attachments/assets/4409f7a5-330b-477e-86cd-ac9231487d35" />
+
+A fully functional chess game running in the browser with no dependencies, plain HTML, CSS, and vanilla JavaScript ES modules rendered onto an HTML5 `<canvas>`.
 
 ## Features
 
@@ -52,7 +54,7 @@ Each piece is a plain object:
 { type, color, col, row, captured: false, moveCount: 0 }
 ```
 
-`col` and `row` are discrete grid indices (0–7). State transitions never mutate in place — `applyMove` and `applyPromotion` return new state objects, which makes move simulation safe and cheap.
+`col` and `row` are discrete grid indices (0–7). State transitions never mutate in place, `applyMove` and `applyPromotion` return new state objects, which makes move simulation safe and cheap.
 
 ### Rules engine
 
@@ -63,7 +65,7 @@ Move generation uses two primitives:
 
 Pawn logic is handled inline in the `MOVE_CALCULATORS` dispatch table, which maps each `PIECE_TYPE` to a function. Queen reuses rook + bishop calculators.
 
-Check detection (`isKingInCheck`) simulates every opponent move and checks whether any lands on the king's square. Legality filtering (`getLegalMoves`) applies every candidate move to a state snapshot and discards moves that leave the king in check — making it impossible to play into check.
+Check detection (`isKingInCheck`) simulates every opponent move and checks whether any lands on the king's square. Legality filtering (`getLegalMoves`) applies every candidate move to a state snapshot and discards moves that leave the king in check, making it impossible to play into check.
 
 ### Command Pattern (history)
 
