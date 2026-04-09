@@ -2,6 +2,8 @@
 
 A fully functional chess game running in the browser with no dependencies, plain HTML, CSS, and vanilla JavaScript ES modules rendered onto an HTML5 `<canvas>`.
 
+[▶ Play it live](https://danilonakai.github.io/chess)
+
 <img width="831" height="827" alt="Screenshot from 2026-04-09 06-31-59" src="https://github.com/user-attachments/assets/4409f7a5-330b-477e-86cd-ac9231487d35" />
 
 ## Features
